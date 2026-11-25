@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador MIC-1</title>
+  <meta name="description" content="Simulador gráfico e educacional do MIC-1 clássico (Tanenbaum) com a ISA MAC-1, microprograma MAL e caches L1.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232563eb'/%3E%3Ctext x='16' y='21' font-family='sans-serif' font-size='12' font-weight='700' fill='white' text-anchor='middle'%3EM1%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body class="has-splash">
+  <!-- Tela inicial: cobre o simulador até o clique em "Início" (o simulador carrega por trás). -->
+  <div id="splash" class="splash" role="dialog" aria-modal="true" aria-labelledby="splash-title">
+    <section class="splash__card" data-view="menu">
+      <h1 id="splash-title" class="splash__title">Simulador MIC-1</h1>
+      <p class="splash__subtitle">Arquitetura de Computadores — UFF</p>
+      <div class="splash__actions">
+        <button type="button" class="btn btn--primary btn--large" data-splash="start">Início</button>
+        <button type="button" class="btn btn--large" data-splash="credits">Créditos</button>
+      </div>
+    </section>
+    <section class="splash__card" data-view="credits" aria-labelledby="credits-title" hidden>
+      <h2 id="credits-title" class="splash__title splash__title--small">Créditos</h2>
+      <ul class="splash__names">
+        <li>Kauê Lopes Ribeiro Campos</li>
+        <li>Arthur Ribeiro de Moura</li>
+      </ul>
+      <div class="splash__actions">
+        <button type="button" class="btn btn--large" data-splash="back">Voltar para o Menu</button>
+      </div>
+    </section>
+  </div>
+
+  <header class="topbar">
+    <!-- Linha 1: título, controles principais e velocidade. -->
+    <div class="topbar__row">
+      <div class="brand">
+        <h1>Simulador MIC-1</h1>
+        <span class="brand__sub">Trabalho de Arquitetura de Computadores — UFF</span>
+      </div>
+
+      <div class="toolbar" role="toolbar" aria-label="Execução">
+        <button id="btn-assemble" class="btn btn--primary" type="button" title="Monta o código e carrega na memória (Ctrl+Enter no editor)">Montar e Carregar</button>
+        <span class="toolbar__sep" aria-hidden="true"></span>
+        <button id="btn-run" class="btn btn--run" type="button" aria-pressed="false" title="Executa passo a passo na velocidade escolhida (barra de espaço)">▶ Iniciar</button>
+        <button class="btn" type="button" data-step="micro" title="Executa até o fim da microinstrução atual">1 Microinstrução</button>
+        <button class="btn" type="button" data-step="macro" title="Executa até o MPC voltar à busca">1 Macroinstrução</button>
+        <button id="btn-halt" class="btn" type="button" title="Executa até o laço final (JUMP para si mesmo), com trava de 10.000 ciclos">Executar até HALT</button>
+        <button id="btn-reset" class="btn" type="button" title="Recarrega o programa montado e zera a CPU e as caches">Resetar</button>
+        <button id="btn-menu" class="btn btn--quiet" type="button" title="Volta à tela inicial (pausa a execução)">Menu</button>
+      </div>
+
+      <div class="topbar__end">
+        <label class="speed" for="speed">
+          <span>Velocidade</span>
+          <input id="speed" type="range" min="0.1" max="2" step="0.1" value="0.5">
+          <output id="speed-value" for="speed">0,5 s/passo</output>
+        </label>
+      </div>
+    </div>
+
+    <!-- Linha 2: as duas chaves principais, opções avançadas e contadores. Todo o formulário
+         dispara "change" para o mesmo tratador (mudar uma opção reinicia a simulação). -->
+    <form class="topbar__row config" id="config" aria-label="Configuração da arquitetura" onsubmit="return false">
+      <fieldset class="seg">
+        <legend>Decodificação</legend>
+        <label><input type="radio" name="mode" value="original" checked><span>Original (79)</span></label>
+        <label><input type="radio" name="mode" value="case"><span>Case (67)</span></label>
+      </fieldset>
+      <fieldset class="seg">
+        <legend>Caches</legend>
+        <label><input type="radio" name="caches" value="on" checked><span>Ligadas</span></label>
+        <label><input type="radio" name="caches" value="off"><span>Desligadas</span></label>
+      </fieldset>
+      <button id="btn-advanced" class="btn btn--toggle" type="button" aria-expanded="false" aria-controls="advanced">Opções avançadas</button>
+
+      <div class="counters" aria-live="polite">
+        <div class="counter"><span class="counter__label">Macroinstruções</span><span class="counter__value" id="c-instructions">0</span></div>
+        <div class="counter"><span class="counter__label">Ciclos</span><span class="counter__value" id="c-cycles">0</span></div>
+        <div class="counter counter--stall" title="Subciclos de espera causados por misses de cache"><span class="counter__label">Stalls</span><span class="counter__value" id="c-stall">0</span></div>
+        <div class="counter counter--status"><span class="counter__label">Status</span><span class="status" id="status" data-kind="idle">Sem programa</span></div>
+      </div>
+
+      <div id="advanced" class="advanced" hidden>
+        <div class="advanced__group" role="group" aria-label="Execução fina">
+          <div class="field">
+            <span class="field__label">Avanço fino</span>
+            <button class="btn" type="button" data-step="subcycle" title="Avança um subciclo (Δw, Δx, Δy, Δz ou espera)">1 Subciclo</button>
+          </div>
+          <label class="field">
+            <span class="field__label">Passo do Iniciar</span>
+            <select id="run-granularity" aria-label="Passo da execução automática">
+              <option value="subcycle">por subciclo</option>
+              <option value="micro" selected>por microinstrução</option>
+              <option value="macro">por macroinstrução</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="advanced__group" role="group" aria-label="Caches L1">
+          <fieldset class="seg" data-cache-option>
+            <legend>Mapeamento</legend>
+            <label><input type="radio" name="mapping" value="direct" checked><span>Direto</span></label>
+            <label><input type="radio" name="mapping" value="2way"><span>2-Way LRU</span></label>
+          </fieldset>
+          <fieldset class="seg" data-cache-option>
+            <legend>Linhas</legend>
+            <label><input type="radio" name="lines" value="4"><span>4</span></label>
+            <label><input type="radio" name="lines" value="8"><span>8</span></label>
+            <label><input type="radio" name="lines" value="16" checked><span>16</span></label>
+          </fieldset>
+          <fieldset class="seg" data-cache-option>
+            <legend>Bloco (palavras)</legend>
+            <label><input type="radio" name="block" value="1"><span>1</span></label>
+            <label><input type="radio" name="block" value="2" checked><span>2</span></label>
+            <label><input type="radio" name="block" value="4"><span>4</span></label>
+          </fieldset>
+          <label class="field">
+            <span class="field__label">Penalidade de miss</span>
+            <span class="field__control"><input id="penalty" type="number" min="0" max="50" step="1" value="4" inputmode="numeric"><small>subciclos</small></span>
+          </label>
+        </div>
+
+        <div class="advanced__group" role="group" aria-label="Relógio">
+          <div class="counters counters--inline">
+            <div class="counter"><span class="counter__label">Subciclos totais</span><span class="counter__value" id="c-subcycles">0</span></div>
+            <div class="counter"><span class="counter__label">Agora</span><span class="counter__value counter__value--small" id="c-phase">—</span></div>
+          </div>
+        </div>
+
+        <div class="advanced__group" role="group" aria-label="Aparência">
+          <div class="field">
+            <span class="field__label">Tema</span>
+            <button id="btn-theme" class="btn" type="button" title="Tema: claro">◐ Claro / escuro</button>
+          </div>
+        </div>
+
+        <p class="config__note">As duas caches (I e D) usam a mesma configuração. Mudar uma opção reinicia a simulação.</p>
+      </div>
+    </form>
+  </header>
+
+  <main class="workspace">
+    <!-- Coluna esquerda: editor em cima, microprograma e MIR em abas embaixo. -->
+    <section class="panel panel--code" aria-label="Programa e microprograma">
+      <div class="panel__head">
+        <h2>Programa MAC-1</h2>
+        <select id="example-select" aria-label="Exemplos prontos">
+          <option value="">Exemplos…</option>
+        </select>
+      </div>
+      <div id="editor"></div>
+      <p class="hint" id="editor-hint">Ctrl+Enter monta o programa. Rótulos: <code>laco:</code>, dados: <code>v: 1, 2, 3</code>, comentários <code>;</code> ou <code>//</code>.</p>
+      <div id="asm-errors" class="asm-errors" role="alert" hidden></div>
+
+      <div class="tabs tabs--inner" data-tabs>
+        <div class="tabs__list" role="tablist" aria-label="Microprograma e MIR">
+          <button class="tabs__tab" role="tab" type="button" id="tab-mal" aria-controls="panel-mal" aria-selected="true">Microprograma MAL</button>
+          <button class="tabs__tab" role="tab" type="button" id="tab-mir" aria-controls="panel-mir" aria-selected="false" tabindex="-1">Campos do MIR</button>
+        </div>
+        <div class="tabpanel tabpanel--fill" role="tabpanel" id="panel-mal" aria-labelledby="tab-mal">
+          <p class="panel__meta tabpanel__meta" id="mal-info"></p>
+          <ol id="mal-list" class="mal" aria-label="Microinstruções"></ol>
+          <p class="hint"><span class="swatch swatch--current"></span> em execução (MIR) <span class="swatch swatch--next"></span> próxima (MPC)</p>
+        </div>
+        <div class="tabpanel tabpanel--scroll" role="tabpanel" id="panel-mir" aria-labelledby="tab-mir" hidden>
+          <div id="mir-fields" class="mir-fields"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel panel--diagram" aria-label="Diagrama da microarquitetura">
+      <div class="panel__head">
+        <h2>Via de dados e unidade de controle</h2>
+        <span class="panel__meta">Tanenbaum (3ª ed.)</span>
+      </div>
+      <div class="diagram-wrap">
+        <svg id="diagram" class="diagram" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </section>
+
+    <!-- Coluna direita: memória principal e caches L1 em duas abas. -->
+    <section class="panel panel--side tabs" data-tabs aria-label="Memória principal e caches L1">
+      <div class="tabs__list" role="tablist" aria-label="Memória e caches">
+        <button class="tabs__tab" role="tab" type="button" id="tab-memory" aria-controls="memory" aria-selected="true">Memória Principal</button>
+        <button class="tabs__tab" role="tab" type="button" id="tab-caches" aria-controls="panel-caches" aria-selected="false" tabindex="-1">Caches L1</button>
+      </div>
+
+      <div class="tabpanel tabpanel--fill" role="tabpanel" id="memory" aria-labelledby="tab-memory">
+        <div class="memory__jumps">
+          <button class="btn btn--small" type="button" data-jump="code">Ir para Código [0]</button>
+          <button class="btn btn--small" type="button" data-jump="data">Ir para Dados</button>
+          <button class="btn btn--small" type="button" data-jump="stack">Ir para Pilha [4095]</button>
+          <label class="memory__goto">
+            <span class="sr-only">Ir para o endereço</span>
+            <input id="memory-goto" type="text" placeholder="end. (ex.: 12, 0x0C)" inputmode="text">
+          </label>
+          <span class="panel__meta memory__sp" data-sp>SP = 4096</span>
+        </div>
+        <div class="memory__header" aria-hidden="true">
+          <span class="memory__span">Endereço</span><span class="memory__span">Valor (hex · dec)</span><span>Conteúdo</span>
+        </div>
+        <div class="memory__viewport" tabindex="0" aria-label="Conteúdo da memória">
+          <div class="memory__spacer"><div class="memory__rows"></div></div>
+        </div>
+        <p class="hint"><span class="swatch swatch--read"></span> lido <span class="swatch swatch--write"></span> escrito <span class="swatch swatch--pending"></span> acesso em andamento</p>
+      </div>
+
+      <div class="tabpanel tabpanel--scroll tabpanel--caches" role="tabpanel" id="panel-caches" aria-labelledby="tab-caches" hidden>
+        <div id="cache-i"></div>
+        <div id="cache-d"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
