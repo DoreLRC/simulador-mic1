@@ -61,14 +61,14 @@ python -m uvicorn server.app:app --port 8000
 
 Para rodar os testes, instale `requirements-dev.txt` e use `python -m pytest` na mesma pasta.
 
-## Equipe
+## Grupo
 
 | Integrante | Frentes |
 | --- | --- |
 | **Kauê Lopes Ribeiro Campos** | Arquitetura do MIC-1, integração e interface web  |
 | **Arthur Ribeiro de Moura** | Montador MAC-1, caches L1 e visualização da via de dados  |
 
-## Referências
+## Bibliografia
 
 - TANENBAUM, Andrew S. *Organização Estruturada de Computadores*. 3. ed. Capítulo 4: o nível
   de microprogramação (máquina MIC-1 e conjunto de instruções MAC-1).
