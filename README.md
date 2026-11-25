@@ -21,7 +21,7 @@ de 79 microinstruções, com uma versão de 67 microinstruções que pula direto
 opcode, e medir o efeito de caches L1 separadas de instruções e de dados no tempo de
 execução.
 
-## O que dá para fazer
+## O que é possível fazer
 
 - Escrever programas em assembly MAC-1 com rótulos, variáveis e vetores (`a: 10, 20, 30`) e
   montar com um clique; os erros aparecem com o número da linha.
