@@ -1,0 +1,24 @@
+; Desvio condicional: "Se (i <= n) então m := a[i]"
+; Tradução direta para macroinstruções MAC-1, sem otimizações.
+;
+; Ciclos medidos no simulador (n = 5):
+;   i = 2 (entra no "então"): 76 ciclos no modo original, 56 no modo case
+;   i = 7 (pula para a saída): 27 ciclos no modo original, 18 no modo case
+;
+; Para testar o outro caminho, é só trocar o valor de i para 7 lá embaixo.
+
+        LODD n          ; ac := n
+        SUBD i          ; ac := n - i
+        JNEG saida      ; se n - i < 0 (ou seja, i > n), vai para a saída
+        LOCO &a         ; ac := endereço de a
+        ADDD i          ; ac := &a + i  (endereço de a[i])
+        PSHI            ; empilha m[ac] = a[i]
+        POP             ; ac := a[i]
+        STOD m          ; m := a[i]
+saida:  JUMP saida      ; fim do programa (laço parado)
+
+; dados
+n:      5
+i:      2
+m:      0
+a:      10, 20, 30, 40, 50

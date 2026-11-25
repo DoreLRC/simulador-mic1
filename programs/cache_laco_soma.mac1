@@ -1,0 +1,39 @@
+; Demonstração das caches L1: soma os 4 elementos de v e repete a varredura 3 vezes.
+;
+; Na 1ª passagem só acontecem misses frios: cada bloco de código (I-Cache) e de dados
+; (D-Cache) vem da memória principal uma única vez. Nas passagens seguintes o laço e as
+; variáveis já estão nas caches, então é tudo hit.
+;
+; Com a configuração padrão da interface (16 linhas, blocos de 2 palavras, mapeamento
+; direto e miss de 4 subciclos) dá 68 subciclos de stall: 9 misses na I-Cache e 8 na
+; D-Cache. Com as caches desligadas, sobe para 1128.
+; Com 8 linhas na I-Cache, o bloco de "JNZE inicio / fim" disputa o índice 0 com o
+; começo do programa e aparecem misses de conflito a cada varredura.
+; Resultado esperado: soma = 3 × (1 + 2 + 3 + 4) = 30.
+
+inicio: LOCO 0
+        STOD k            ; k := 0
+laco:   LOCO v
+        ADDD k            ; ac := &v + k
+        PSHI              ; empilha v[k]
+        POP               ; ac := v[k]
+        ADDD soma
+        STOD soma         ; soma := soma + v[k]
+        LODD k
+        ADDD um
+        STOD k            ; k := k + 1
+        SUBD tam
+        JNZE laco         ; repete enquanto k != tam
+        LODD voltas
+        SUBD um
+        STOD voltas       ; voltas := voltas - 1
+        JNZE inicio       ; repete a varredura
+fim:    JUMP fim
+
+; dados
+k:      0
+soma:   0
+um:     1
+tam:    4
+voltas: 3
+v:      1, 2, 3, 4

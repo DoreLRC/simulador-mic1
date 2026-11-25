@@ -1,0 +1,79 @@
+# Microprograma do MIC-1 com o desvio "case" feito pelo hardware: 67 microinstruções.
+#
+# Hardware extra: IR[15:12] ligado às entradas 5 a 2 do MMUX. Quando o próximo endereço
+# seria 255, o MPC recebe IR[15:12] × 4 e pula direto para a rotina do opcode, sem a
+# árvore de testes do microprograma original.
+#
+# Organização:
+#   * cada opcode de 4 bits tem 4 posições a partir de opcode × 4 (0, 4, 8, ..., 60);
+#   * o grupo 1111 começa em 60 e reaproveita as microinstruções 51 a 78 do original,
+#     agora nos endereços 63 a 90 (com os destinos ajustados);
+#   * a busca fica em 252 a 254 e termina caindo no 255, que dispara o desvio.
+
+0: mar := ir; rd;                                {0000 = LODD}
+1: rd;
+2: ac := mbr; goto 252;
+4: mar := ir; mbr := ac; wr;                     {0001 = STOD}
+5: wr; goto 252;
+8: mar := ir; rd;                                {0010 = ADDD}
+9: rd;
+10: ac := mbr + ac; goto 252;
+12: mar := ir; rd;                               {0011 = SUBD}
+13: ac := ac + 1; rd;                            {x - y = x + 1 + inv(y)}
+14: a := inv(mbr);
+15: ac := ac + a; goto 252;
+16: alu := ac; if n then goto 252;               {0100 = JPOS}
+17: pc := band(ir, amask); goto 252;             {efetua o desvio}
+20: alu := ac; if z then goto 17;                {0101 = JZER}
+21: goto 252;                                    {desvio não tomado}
+24: pc := band(ir, amask); goto 252;             {0110 = JUMP}
+28: ac := band(ir, amask); goto 252;             {0111 = LOCO}
+32: a := ir + sp;                                {1000 = LODL}
+33: mar := a; rd; goto 1;
+36: a := ir + sp;                                {1001 = STOL}
+37: mar := a; mbr := ac; wr; goto 5;
+40: a := ir + sp;                                {1010 = ADDL}
+41: mar := a; rd; goto 9;
+44: a := ir + sp;                                {1011 = SUBL}
+45: mar := a; rd; goto 13;
+48: alu := ac; if n then goto 17;                {1100 = JNEG}
+49: goto 252;
+52: alu := ac; if z then goto 252;               {1101 = JNZE}
+53: pc := band(ir, amask); goto 252;
+56: sp := sp + (-1);                             {1110 = CALL}
+57: mar := sp; mbr := pc; wr;
+58: pc := band(ir, amask); wr; goto 252;
+60: tir := lshift(ir + ir);                      {1111: alinha os bits 11–9}
+61: tir := lshift(tir + tir);
+62: tir := lshift(tir); if n then goto 77;
+63: tir := lshift(tir); if n then goto 71;       {original 51}
+64: alu := tir; if n then goto 68;               {original 52}
+65: mar := ac; rd;                               {1111-000 = PSHI}
+66: sp := sp + (-1); rd;
+67: mar := sp; wr; goto 5;
+68: mar := sp; sp := sp + 1; rd;                 {1111-001 = POPI}
+69: rd;
+70: mar := ac; wr; goto 5;
+71: alu := tir; if n then goto 74;               {original 59}
+72: sp := sp + (-1);                             {1111-010 = PUSH}
+73: mar := sp; mbr := ac; wr; goto 5;
+74: mar := sp; sp := sp + 1; rd;                 {1111-011 = POP}
+75: rd;
+76: ac := mbr; goto 252;
+77: tir := lshift(tir); if n then goto 85;       {original 65}
+78: alu := tir; if n then goto 82;               {original 66}
+79: mar := sp; sp := sp + 1; rd;                 {1111-100 = RETN}
+80: rd;
+81: pc := mbr; goto 252;
+82: a := ac;                                     {1111-101 = SWAP}
+83: ac := sp;
+84: sp := a; goto 252;
+85: alu := tir; if n then goto 88;               {original 73}
+86: a := band(ir, smask);                        {1111-110 = INSP}
+87: sp := sp + a; goto 252;
+88: a := band(ir, smask);                        {1111-111 = DESP}
+89: a := inv(a);
+90: a := a + 1; goto 87;
+252: mar := pc; rd;                              {busca}
+253: pc := pc + 1; rd;                           {busca}
+254: ir := mbr;                                  {busca; MPC = 255 → case}
