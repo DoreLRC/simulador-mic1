@@ -65,8 +65,8 @@ Para rodar os testes, instale `requirements-dev.txt` e use `python -m pytest` na
 
 | Integrante | Frentes |
 | --- | --- |
-| **Kauê Lopes Ribeiro Campos** | Arquitetura do MIC-1, montador MAC-1, caches L1 e integração |
-| **Arthur Ribeiro de Moura** | Interface web, visualização da via de dados e documentação |
+| **Kauê Lopes Ribeiro Campos** | Arquitetura do MIC-1, integração e interface web  |
+| **Arthur Ribeiro de Moura** | Montador MAC-1, caches L1 e visualização da via de dados  |
 
 ## Referências
 
